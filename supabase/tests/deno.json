@@ -1,0 +1,14 @@
+{
+  "tasks": {
+    "test": "deno test --allow-net --allow-env --parallel",
+    "test:all": "deno test --allow-net --allow-env --parallel --reporter=verbose",
+    "test:database": "deno test --allow-net --allow-env database.test.ts",
+    "test:create-game": "deno test --allow-net --allow-env functions/create-game.test.ts",
+    "test:validate-move": "deno test --allow-net --allow-env functions/validate-move.test.ts",
+    "test:functions": "deno test --allow-net --allow-env functions/",
+    "test:watch": "deno test --allow-net --allow-env --watch",
+    "test:coverage": "deno test --allow-net --allow-env --coverage=coverage",
+    "coverage": "deno coverage coverage"
+  },
+  "importMap": "./import_map.json"
+}
