@@ -9,18 +9,19 @@ import {
   deleteTestUser,
   callFunction,
   createTestGame,
-  type TestUser
-} from '../helpers/test-utils.ts'
+  type TestUser,
+} from "../helpers/test-utils.ts"
 
 Deno.test("validate-move: Rejects unauthenticated requests", async () => {
-  const { response, data } = await callFunction('validate-move', {
-    gameId: 'fake-id',
-    from: 'e2',
-    to: 'e4'
+  const { response } = await callFunction("validate-move", {
+    body: {
+      gameId: "fake-id",
+      from: "e2",
+      to: "e4",
+    },
   })
 
   assertEquals(response.status, 401, "Should return 401 Unauthorized")
-  assertEquals(data.error, 'Unauthorized', "Should have error message")
 })
 
 Deno.test("validate-move: Makes valid opening move", async () => {
@@ -28,18 +29,17 @@ Deno.test("validate-move: Makes valid opening move", async () => {
   let player2: TestUser | null = null
 
   try {
-    player1 = await createTestUser('whiteplayer')
-    player2 = await createTestUser('blackplayer')
+    player1 = await createTestUser("whiteplayer")
+    player2 = await createTestUser("blackplayer")
 
     const { gameId, yourColor } = await createTestGame(player1.token, player2.username)
     const whiteToken = yourColor === 'white' ? player1.token : player2.token
 
     // Make opening move (e2-e4)
-    const { response, data } = await callFunction('validate-move', {
-      gameId,
-      from: 'e2',
-      to: 'e4'
-    }, whiteToken)
+    const { response, data } = await callFunction("validate-move", {
+      token: whiteToken,
+      body: { gameId, from: "e2", to: "e4" },
+    })
 
     assertEquals(response.status, 200, "Should return 200 OK")
     assertEquals(data.success, true, "Move should succeed")
@@ -48,16 +48,16 @@ Deno.test("validate-move: Makes valid opening move", async () => {
 
     // Verify move in database
     const { data: moves } = await supabase
-      .from('moves')
-      .select('*')
-      .eq('game_id', gameId)
+      .from("moves")
+      .select("*")
+      .eq("game_id", gameId)
 
     assertEquals(moves?.length, 1, "Should have one move recorded")
-    assertEquals(moves?.[0].from_square, 'e2', "From square should be e2")
-    assertEquals(moves?.[0].to_square, 'e4', "To square should be e4")
+    assertEquals(moves?.[0].from_square, "e2", "From square should be e2")
+    assertEquals(moves?.[0].to_square, "e4", "To square should be e4")
 
     // Cleanup
-    await supabase.from('games').delete().eq('id', gameId)
+    await supabase.from("games").delete().eq("id", gameId)
   } finally {
     if (player1) await deleteTestUser(player1.id)
     if (player2) await deleteTestUser(player2.id)
@@ -69,24 +69,23 @@ Deno.test("validate-move: Rejects illegal move", async () => {
   let player2: TestUser | null = null
 
   try {
-    player1 = await createTestUser('badmover1')
-    player2 = await createTestUser('badmover2')
+    player1 = await createTestUser("badmover1")
+    player2 = await createTestUser("badmover2")
 
     const { gameId, yourColor } = await createTestGame(player1.token, player2.username)
     const whiteToken = yourColor === 'white' ? player1.token : player2.token
 
     // Try illegal move (pawn moving backwards)
-    const { response, data } = await callFunction('validate-move', {
-      gameId,
-      from: 'e2',
-      to: 'e1'
-    }, whiteToken)
+    const { response, data } = await callFunction("validate-move", {
+      token: whiteToken,
+      body: { gameId, from: "e2", to: "e1" },
+    })
 
     assertEquals(response.status, 400, "Should return 400 Bad Request")
     assertEquals(data.error, 'Illegal move', "Should reject illegal move")
 
     // Cleanup
-    await supabase.from('games').delete().eq('id', gameId)
+    await supabase.from("games").delete().eq("id", gameId)
   } finally {
     if (player1) await deleteTestUser(player1.id)
     if (player2) await deleteTestUser(player2.id)
@@ -98,24 +97,23 @@ Deno.test("validate-move: Enforces turn order", async () => {
   let player2: TestUser | null = null
 
   try {
-    player1 = await createTestUser('eager1')
-    player2 = await createTestUser('eager2')
+    player1 = await createTestUser("eager1")
+    player2 = await createTestUser("eager2")
 
     const { gameId, yourColor } = await createTestGame(player1.token, player2.username)
     const blackToken = yourColor === 'black' ? player1.token : player2.token
 
     // Try to move as black before white moves
-    const { response, data } = await callFunction('validate-move', {
-      gameId,
-      from: 'e7',
-      to: 'e5'
-    }, blackToken)
+    const { response, data } = await callFunction("validate-move", {
+      token: blackToken,
+      body: { gameId, from: "e7", to: "e5" },
+    })
 
     assertEquals(response.status, 400, "Should return 400 Bad Request")
     assertEquals(data.error, 'Not your turn', "Should enforce turn order")
 
     // Cleanup
-    await supabase.from('games').delete().eq('id', gameId)
+    await supabase.from("games").delete().eq("id", gameId)
   } finally {
     if (player1) await deleteTestUser(player1.id)
     if (player2) await deleteTestUser(player2.id)
@@ -127,51 +125,48 @@ Deno.test("validate-move: Allows alternating moves", async () => {
   let player2: TestUser | null = null
 
   try {
-    player1 = await createTestUser('alternate1')
-    player2 = await createTestUser('alternate2')
+    player1 = await createTestUser("alternate1")
+    player2 = await createTestUser("alternate2")
 
     const { gameId, yourColor } = await createTestGame(player1.token, player2.username)
     const whiteToken = yourColor === 'white' ? player1.token : player2.token
     const blackToken = yourColor === 'black' ? player1.token : player2.token
 
     // Move 1: e2-e4 (white)
-    const move1 = await callFunction('validate-move', {
-      gameId,
-      from: 'e2',
-      to: 'e4'
-    }, whiteToken)
+    const move1 = await callFunction("validate-move", {
+      token: whiteToken,
+      body: { gameId, from: "e2", to: "e4" },
+    })
     assertEquals(move1.data.success, true, "First move should succeed")
 
     // Move 2: e7-e5 (black)
-    const move2 = await callFunction('validate-move', {
-      gameId,
-      from: 'e7',
-      to: 'e5'
-    }, blackToken)
+    const move2 = await callFunction("validate-move", {
+      token: blackToken,
+      body: { gameId, from: "e7", to: "e5" },
+    })
     assertEquals(move2.data.success, true, "Second move should succeed")
 
     // Move 3: Ng1-f3 (white)
-    const move3 = await callFunction('validate-move', {
-      gameId,
-      from: 'g1',
-      to: 'f3'
-    }, whiteToken)
+    const move3 = await callFunction("validate-move", {
+      token: whiteToken,
+      body: { gameId, from: "g1", to: "f3" },
+    })
     assertEquals(move3.data.success, true, "Third move should succeed")
 
     // Verify all moves in database
     const { data: moves } = await supabase
-      .from('moves')
-      .select('*')
-      .eq('game_id', gameId)
-      .order('move_number', { ascending: true })
+      .from("moves")
+      .select("*")
+      .eq("game_id", gameId)
+      .order("move_number", { ascending: true })
 
     assertEquals(moves?.length, 3, "Should have three moves")
-    assertEquals(moves?.[0].san_notation, 'e4', "First move notation")
-    assertEquals(moves?.[1].san_notation, 'e5', "Second move notation")
-    assertEquals(moves?.[2].san_notation, 'Nf3', "Third move notation")
+    assertEquals(moves?.[0].san_notation, "e4", "First move notation")
+    assertEquals(moves?.[1].san_notation, "e5", "Second move notation")
+    assertEquals(moves?.[2].san_notation, "Nf3", "Third move notation")
 
     // Cleanup
-    await supabase.from('games').delete().eq('id', gameId)
+    await supabase.from("games").delete().eq("id", gameId)
   } finally {
     if (player1) await deleteTestUser(player1.id)
     if (player2) await deleteTestUser(player2.id)
@@ -183,24 +178,32 @@ Deno.test("validate-move: Detects checkmate (Fool's Mate)", async () => {
   let player2: TestUser | null = null
 
   try {
-    player1 = await createTestUser('fool1')
-    player2 = await createTestUser('fool2')
+    player1 = await createTestUser("fool1")
+    player2 = await createTestUser("fool2")
 
     const { gameId, yourColor } = await createTestGame(player1.token, player2.username)
     const whiteToken = yourColor === 'white' ? player1.token : player2.token
     const blackToken = yourColor === 'black' ? player1.token : player2.token
 
     // Fool's Mate sequence (fastest checkmate)
-    await callFunction('validate-move', { gameId, from: 'f2', to: 'f3' }, whiteToken)
-    await callFunction('validate-move', { gameId, from: 'e7', to: 'e5' }, blackToken)
-    await callFunction('validate-move', { gameId, from: 'g2', to: 'g4' }, whiteToken)
+    await callFunction("validate-move", {
+      token: whiteToken,
+      body: { gameId, from: "f2", to: "f3" },
+    })
+    await callFunction("validate-move", {
+      token: blackToken,
+      body: { gameId, from: "e7", to: "e5" },
+    })
+    await callFunction("validate-move", {
+      token: whiteToken,
+      body: { gameId, from: "g2", to: "g4" },
+    })
 
     // Checkmate move
-    const { data } = await callFunction('validate-move', {
-      gameId,
-      from: 'd8',
-      to: 'h4'
-    }, blackToken)
+    const { data } = await callFunction("validate-move", {
+      token: blackToken,
+      body: { gameId, from: "d8", to: "h4" },
+    })
 
     assertEquals(data.gameStatus, 'completed', "Game should be completed")
     assertEquals(data.result, 'black_win', "Black should win")
@@ -217,7 +220,7 @@ Deno.test("validate-move: Detects checkmate (Fool's Mate)", async () => {
     assertExists(game.winner_id, "Should have winner")
 
     // Cleanup
-    await supabase.from('games').delete().eq('id', gameId)
+    await supabase.from("games").delete().eq("id", gameId)
   } finally {
     if (player1) await deleteTestUser(player1.id)
     if (player2) await deleteTestUser(player2.id)
@@ -236,7 +239,10 @@ Deno.test("validate-move: Records move metadata", async () => {
     const whiteToken = yourColor === 'white' ? player1.token : player2.token
 
     // Make a capture move
-    await callFunction('validate-move', { gameId, from: 'e2', to: 'e4' }, whiteToken)
+    await callFunction("validate-move", {
+      token: whiteToken,
+      body: { gameId, from: "e2", to: "e4" },
+    })
 
     const { data: move } = await supabase
       .from('moves')

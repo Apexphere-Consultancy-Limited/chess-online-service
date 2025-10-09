@@ -33,12 +33,13 @@ This document outlines a **3-stage architecture** for building PvP chess:
 - ✅ Server-side move validation
 - ✅ Game history and replay
 - ✅ ELO ratings and stats
-- ✅ Challenge by username (manual matchmaking)
+- ✅ Shared lobby with online presence + open challenges
+- ✅ Challenge by username with in-app notifications
 
 **Limitations:**
 - 100-200ms move latency (acceptable for casual chess)
-- No auto-matchmaking queue (challenge friends by username)
-- No live presence tracking
+- No auto-matchmaking queue (manual invites only)
+- In-app notifications require both players to be online (no push/email yet)
 - Supports <50 concurrent games
 
 **Cost:** $0 (Supabase free tier)
@@ -125,12 +126,95 @@ moves (
   fen_after TEXT,    -- Board state after move
   created_at TIMESTAMPTZ
 )
+
+-- Lobby sessions (ephemeral presence)
+lobby_sessions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  player_id UUID REFERENCES profiles(id),
+  status TEXT CHECK (status IN ('available', 'in_game')),
+  last_seen TIMESTAMPTZ DEFAULT NOW(),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+)
+
+-- Direct challenges (pending invites)
+challenges (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  challenger_id UUID REFERENCES profiles(id),
+  challenged_id UUID REFERENCES profiles(id),
+  status TEXT CHECK (status IN ('pending', 'accepted', 'declined', 'expired')),
+  expires_at TIMESTAMPTZ,
+  game_id UUID REFERENCES games(id),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+)
+
+-- Notification feed (in-app toasts + unread counter)
+notifications (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  recipient_id UUID REFERENCES profiles(id),
+  type TEXT CHECK (type IN ('challenge_received', 'challenge_accepted', 'challenge_declined', 'game_ready')),
+  payload JSONB,
+  read_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+)
 ```
 
 **Indexes:**
 - `games(status)` - Query active games
 - `games(white_player_id, black_player_id)` - Player's games
 - `moves(game_id, move_number)` - Replay games in order
+- `lobby_sessions(player_id)` - Presence lookups
+- `challenges(challenged_id, status)` - Pending invites per player
+- `notifications(recipient_id, created_at)` - Unread feed ordering
+
+---
+
+## Lobby & Notification Flows
+
+### Lobby Presence
+```
+Player opens /lobby
+  ↓
+Frontend → inserts/updates lobby_sessions (status='available')
+  ↓
+Supabase RLS ensures players manage only their row
+  ↓
+Supabase Realtime (channel: lobby) streams INSERT/UPDATE events
+  ↓
+Clients render online players + open challenges list
+  ↓
+Heartbeat: client PATCH last_seen every 20s (supabase.from('lobby_sessions').upsert)
+  ↓
+Edge Function cron cleans up rows with last_seen older than 60s
+```
+
+### Sending a Challenge
+```
+Player selects opponent in lobby
+  ↓
+POST /functions/v1/create-challenge
+  - Validates players are distinct and available
+  - Inserts challenges row (status='pending')
+  - Inserts notifications row for challenged player
+  ↓
+Supabase Realtime broadcasts both table changes
+  ↓
+Challenged player sees toast + badge count increment
+```
+
+### Responding to a Challenge
+```
+Player taps Accept/Decline
+  ↓
+Edge Function: update challenges.status
+  - On accept: create game record + set status='accepted'
+  - Insert notification for challenger (accepted/declined)
+  - Remove both players from lobby_sessions (status='in_game')
+  ↓
+Realtime broadcasts updates
+  ↓
+Clients route both players to /game/{gameId} when game_ready notification arrives
+```
 
 ---
 
@@ -138,10 +222,15 @@ moves (
 
 ### 1. Game Creation
 ```
-Player A → Create Game (select opponent by username)
-         → Edge Function creates game record
-         → Both players navigate to /game/{gameId}
-         → Both subscribe to Realtime channel
+Challenge accepted (manual invite via lobby)
+         ↓
+Edge Function creates game record + updates challenge status
+         ↓
+Notifications table adds `game_ready` entries for both players
+         ↓
+Frontend routes players to /game/{gameId}
+         ↓
+Both subscribe to Realtime channel
 ```
 
 ### 2. Playing Moves
@@ -174,6 +263,7 @@ Edge Function:
   - Set result and winner
   - Calculate ELO changes
   - Update both players' profiles
+  - Reset lobby_sessions.status to 'available'
   ↓
 Both players see game over screen with new ratings
 ```
@@ -185,6 +275,9 @@ Both players see game over screen with new ratings
 ### Row Level Security (RLS)
 - Players can only read their own games
 - Players can only read moves from their games
+- Players can only upsert/delete their lobby_sessions row
+- Only challenger/challenged can see a challenge invite
+- Notifications restricted to recipient_id
 - All writes go through Edge Functions (service role)
 
 ### Move Validation
@@ -207,8 +300,14 @@ Both players see game over screen with new ratings
 - Magic link login (optional)
 - Profile creation with username and ELO rating
 
+**Lobby & Notifications:**
+- Real-time lobby presence (online/playing)
+- Open challenge list with accept/decline actions
+- In-app notification center + toast alerts
+- Optional browser notification prompt (progressive enhancement)
+
 **PvP Gameplay:**
-- Challenge opponent by username
+- Launch games from accepted challenges
 - Real-time move synchronization
 - Optimistic updates (show move immediately)
 - Server validates and broadcasts
@@ -234,6 +333,7 @@ Both players see game over screen with new ratings
 - `/` - Home/landing page
 - `/login` - Authentication
 - `/profile` - User profile and stats
+- `/lobby` - Online players, open challenges, notifications
 - `/game/:gameId` - Live PvP game
 - `/history` - Past games list
 - `/replay/:gameId` - Replay a game
@@ -249,12 +349,14 @@ Both players see game over screen with new ratings
 - [ ] Implement chess.js move validation
 - [ ] Set up React project with routing
 
-**Week 2: PvP Gameplay**
+**Week 2: PvP Gameplay & Lobby**
 - [ ] Build ChessBoard component
 - [ ] Implement drag-and-drop moves
 - [ ] Supabase Realtime integration
 - [ ] Game creation flow
 - [ ] Move synchronization between players
+- [ ] Lobby page (online players, open challenges)
+- [ ] lobby_sessions upsert + 60s cleanup
 
 **Week 3: Features & Polish**
 - [ ] Game history page
@@ -263,6 +365,8 @@ Both players see game over screen with new ratings
 - [ ] Profile page with stats
 - [ ] Game over modal
 - [ ] Basic styling and UX
+- [ ] Challenge invitation Edge Functions (create/accept/decline)
+- [ ] Notifications center + toasts
 
 ---
 
@@ -279,10 +383,11 @@ Both players see game over screen with new ratings
 - Rate limiting (per-player move throttling)
 
 **New Features:**
-- Auto-matchmaking lobby
+- Auto-matchmaking queue layered on lobby sessions
 - Skill-based pairing (±100 ELO)
-- Live player count
+- Live player/presence counts sourced from Redis TTL keys
 - Faster move validation (50-100ms vs 100-200ms)
+- Optional email/push notifications via Edge Functions scheduler
 
 **Tech Stack:** Supabase + Upstash Redis
 
@@ -347,6 +452,9 @@ TTL: 30 seconds (heartbeat refresh)
 # Rate limiting (STRING counter)
 ratelimit:moves:{playerId} → count
 TTL: 1 second
+
+# Notification fan-out (STREAM)
+notifications:stream:{playerId}
 ```
 
 ---
@@ -395,16 +503,22 @@ Edge Function:
 - [ ] Define Redis key schema
 
 **Matchmaking:**
-- [ ] Build lobby UI
-- [ ] Implement queue join/leave
+- [ ] Implement queue join/leave Edge Functions
+- [ ] Surface queue state in lobby UI (position, ETA)
 - [ ] Create matchmaking worker (cron)
 - [ ] Pairing algorithm (ELO-based)
+- [ ] Broadcast match-found notifications
 
 **Performance:**
 - [ ] Cache game state in Redis
 - [ ] Redis-first move validation
 - [ ] Async Postgres writes
-- [ ] Presence tracking
+- [ ] Presence tracking via Redis heartbeat
+
+**Notifications:**
+- [ ] Write notifications to Redis Streams for fan-out
+- [ ] Trigger email/push (Supabase functions + third-party)
+- [ ] Sync unread counts back to Postgres nightly
 
 ---
 
@@ -425,6 +539,7 @@ Edge Function:
 - In-game chat
 - Tournaments
 - Advanced analytics
+- Cross-device notifications (push/email/webhook fan-out)
 
 **Tech Stack:** Supabase + Redis + Node.js WebSocket Server
 
@@ -473,6 +588,7 @@ Edge Function:
 - Live spectators (subscribe to Pub/Sub)
 - In-game chat (Redis Streams)
 - Tournament brackets
+- Multi-channel notifications (push/email/webhooks)
 
 **Scalability:**
 - Horizontal scaling (multiple server instances)
@@ -578,22 +694,56 @@ if (chess.isStalemate() || chess.isDraw()) {
 
 ## Real-time Communication
 
-**Stage 1:** Supabase Realtime (Postgres Changes)
+**Stage 1:** Supabase Realtime (Postgres Changes + Broadcast)
 ```typescript
-supabase
-  .channel(`game:${gameId}`)
+// Moves channel
+supabase.channel(`game:${gameId}`)
   .on('postgres_changes', {
     event: 'INSERT',
     schema: 'public',
     table: 'moves',
-    filter: `game_id=eq.${gameId}`
-  }, (payload) => {
-    // Update board with new move
-  })
+    filter: `game_id=eq.${gameId}`,
+  }, handleMove)
+  .subscribe()
+
+// Lobby presence + challenges
+supabase.channel('lobby')
+  .on('postgres_changes', {
+    event: '*',
+    schema: 'public',
+    table: 'lobby_sessions',
+  }, handlePresence)
+  .on('postgres_changes', {
+    event: '*',
+    schema: 'public',
+    table: 'challenges',
+  }, handleChallenge)
+  .subscribe()
+
+// Notification feed
+supabase.channel(`notifications:${userId}`)
+  .on('postgres_changes', {
+    event: 'INSERT',
+    schema: 'public',
+    table: 'notifications',
+    filter: `recipient_id=eq.${userId}`,
+  }, handleNotification)
   .subscribe()
 ```
 
-**Stage 2:** Same as Stage 1 (Redis is backend-only)
+**Stage 2:** Supabase Realtime for DB sync + Redis Pub/Sub for lobby/matchmaking
+```typescript
+// Worker pairs players, publishes to Redis, then notifies Supabase
+await redis.zrem('matchmaking:queue', playerA, playerB)
+await redis.set(`game:${gameId}`, JSON.stringify(gameState), { EX: 86400 })
+
+const payload = { type: 'match-found', gameId, players: [playerA, playerB] }
+await supabase.channel('lobby').send({
+  type: 'broadcast',
+  event: 'match_found',
+  payload,
+})
+```
 
 **Stage 3:** Direct WebSocket
 ```typescript
@@ -648,12 +798,14 @@ function calculateEloChange(
 - Real-time moves
 - Game history
 - ELO ratings
+- Shared lobby with in-app challenge notifications
 - $0 cost
 
 **What you won't have:**
 - Auto-matchmaking (manual challenge only)
 - Blazing fast latency (100-200ms is fine)
 - Spectator mode
+- Offline/email/push notifications
 
 ## Upgrade Later
 

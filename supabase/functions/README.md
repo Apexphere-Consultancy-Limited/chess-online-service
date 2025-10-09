@@ -6,6 +6,12 @@ Backend API for Chess Online Service.
 
 - [create-game](create-game/API.md) - Create a new chess game
 - [validate-move](validate-move/API.md) - Validate and execute a move
+- [upsert-lobby-session](upsert-lobby-session/API.md) - Manage lobby presence heartbeats
+- [cleanup-lobby-sessions](cleanup-lobby-sessions/API.md) - Cron cleanup for stale sessions
+- [create-challenge](create-challenge/API.md) - Issue lobby challenges
+- [cancel-challenge](cancel-challenge/API.md) - Revoke pending challenges
+- [respond-to-challenge](respond-to-challenge/API.md) - Accept or decline challenges
+- [mark-notification-read](mark-notification-read/API.md) - Mark notifications as read
 
 ## Base URL
 
