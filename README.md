@@ -88,6 +88,17 @@ When done developing:
 supabase stop
 ```
 
+## Testing
+
+Run backend test suites via npm scripts (these wrap the Deno tasks inside `supabase/tests`):
+
+```bash
+npm run test            # All tests
+npm run test:db         # Database-only
+npm run test:functions  # Edge functions
+npm run test:integration # Integration flows
+```
+
 ### Option B: Production Setup (Supabase Cloud)
 
 #### 1. Install Dependencies

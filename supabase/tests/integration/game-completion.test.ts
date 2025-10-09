@@ -31,10 +31,22 @@ Deno.test("Game completion: Updates ELO ratings and stats via trigger", async ()
     const whiteToken = yourColor === 'white' ? player1.token : player2.token
     const blackToken = yourColor === 'black' ? player1.token : player2.token
 
-    await callFunction('validate-move', { gameId, from: 'f2', to: 'f3' }, whiteToken)
-    await callFunction('validate-move', { gameId, from: 'e7', to: 'e5' }, blackToken)
-    await callFunction('validate-move', { gameId, from: 'g2', to: 'g4' }, whiteToken)
-    await callFunction('validate-move', { gameId, from: 'd8', to: 'h4' }, blackToken)
+    await callFunction("validate-move", {
+      token: whiteToken,
+      body: { gameId, from: "f2", to: "f3" },
+    })
+    await callFunction("validate-move", {
+      token: blackToken,
+      body: { gameId, from: "e7", to: "e5" },
+    })
+    await callFunction("validate-move", {
+      token: whiteToken,
+      body: { gameId, from: "g2", to: "g4" },
+    })
+    await callFunction("validate-move", {
+      token: blackToken,
+      body: { gameId, from: "d8", to: "h4" },
+    })
 
     // Get updated ELO ratings
     const { data: updatedProfiles } = await supabase

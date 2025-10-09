@@ -13,7 +13,12 @@
     "db:diff": "supabase db diff",
     "supabase:start": "supabase start",
     "supabase:stop": "supabase stop",
-    "supabase:status": "supabase status"
+    "supabase:status": "supabase status",
+    "functions:serve": "supabase functions serve",
+    "test": "cd supabase/tests && deno task test",
+    "test:db": "cd supabase/tests && deno task test:database",
+    "test:functions": "cd supabase/tests && deno task test:functions",
+    "test:integration": "cd supabase/tests && deno test --allow-net --allow-env integration/"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
