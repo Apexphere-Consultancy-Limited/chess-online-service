@@ -88,6 +88,35 @@ When done developing:
 supabase stop
 ```
 
+## Bot Animations (Supabase Storage)
+
+Bot animation GIFs are served from Supabase Storage with global CDN delivery.
+
+### Upload Animations
+
+```bash
+# Ensure storage bucket exists
+npm run db:reset
+
+# Place GIF files in tmp/resources/
+# Then upload to Supabase Storage
+npm run upload:animations
+```
+
+### Access URLs
+
+All animations are publicly accessible via CDN:
+```
+{SUPABASE_URL}/storage/v1/object/public/bot-animations/{bot-difficulty}/{animation-name}.gif
+```
+
+**Example:**
+```
+http://127.0.0.1:54321/storage/v1/object/public/bot-animations/easy-bot/easy-bot-idle-1.gif
+```
+
+**Documentation:** See [docs/BOT_ANIMATIONS.md](docs/BOT_ANIMATIONS.md)
+
 ## Testing
 
 Run backend test suites via npm scripts (these wrap the Deno tasks inside `supabase/tests`):
@@ -99,7 +128,17 @@ npm run test:functions  # Edge functions
 npm run test:integration # Integration flows
 ```
 
-### Option B: Production Setup (Supabase Cloud)
+## Production Deployment
+
+```bash
+./scripts/deploy-storage.sh <project-id> <db-password> <service-role-key>
+```
+
+**See:** [scripts/DEPLOY.md](scripts/DEPLOY.md)
+
+---
+
+### Option B: Manual Production Setup (Alternative)
 
 #### 1. Install Dependencies
 
