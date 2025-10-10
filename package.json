@@ -15,6 +15,7 @@
     "supabase:stop": "supabase stop",
     "supabase:status": "supabase status",
     "functions:serve": "supabase functions serve",
+    "upload:animations": "tsx scripts/upload-bot-animations.ts",
     "test": "cd supabase/tests && deno task test",
     "test:db": "cd supabase/tests && deno task test:database",
     "test:functions": "cd supabase/tests && deno task test:functions",
@@ -27,9 +28,11 @@
     "react-router-dom": "^6.20.0"
   },
   "devDependencies": {
+    "@types/node": "^24.7.1",
     "@types/react": "^18.2.43",
     "@types/react-dom": "^18.2.17",
     "@vitejs/plugin-react": "^4.2.1",
+    "tsx": "^4.20.6",
     "vite": "^5.0.8"
   }
 }
