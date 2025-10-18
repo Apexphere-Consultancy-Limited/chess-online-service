@@ -261,14 +261,19 @@ serve(async (req) => {
     const whitePlayerId = starterIsChallenger ? challenge.challenger_id : challenge.challenged_id
     const blackPlayerId = starterIsChallenger ? challenge.challenged_id : challenge.challenger_id
 
+    // Create game in 'waiting' status, ready_expires_at set to 60 seconds from now
+    const readyExpiresAt = new Date(Date.now() + 60000).toISOString()
+
     const { data: game, error: gameError } = await supabaseAdmin
       .from("games")
       .insert({
         white_player_id: whitePlayerId,
         black_player_id: blackPlayerId,
-        status: "in_progress",
+        status: "waiting",
         current_turn: "white",
-        started_at: new Date().toISOString(),
+        ready_expires_at: readyExpiresAt,
+        white_ready: false,
+        black_ready: false,
       })
       .select("id, white_player_id, black_player_id")
       .single()

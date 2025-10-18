@@ -64,7 +64,12 @@ Required headers:
 ## Side Effects
 
 On acceptance:
-- Creates a new `games` row with status `in_progress`.
+- Creates a new `games` row with:
+  - `status = "waiting"` (not `in_progress` - waiting for both players to click ready)
+  - `white_ready = false`
+  - `black_ready = false`
+  - `ready_expires_at` = 60 seconds from now
+  - `current_turn = "white"`
 - Updates both participants' `lobby_sessions` to `status = "in_game"`.
 - Emits notifications to both players:
   - `challenge_accepted` with payload:
@@ -85,6 +90,8 @@ On acceptance:
       "lobbySlug": "main"
     }
     ```
+
+**Note:** After receiving `game_ready` notification, both players must call the `player-ready` endpoint to start the game. Once both players are ready, the game status changes to `in_progress`.
 
 On decline:
 - Marks challenge as `declined`.
